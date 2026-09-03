@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon One Page - Jeu de Rôle Solo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- En-tête -->
+        <header>
+            <h1>Mon One Page - Jeu de Rôle Solo</h1>
+            <nav>
+                <button class="nav-btn active" data-section="oracle">Oracle</button>
+                <button class="nav-btn" data-section="character">Feuille de Personnage</button>
+                <button class="nav-btn" data-section="journal">Journal d'Aventure</button>
+            </nav>
+        </header>
+
+        <!-- Section Oracle -->
+        <section id="oracle" class="section active">
+            <h2>Oracle</h2>
+            <div class="oracle-container">
+                <div class="oracle-lists">
+                    <h3>Listes de mots</h3>
+                    <div class="list-manager">
+                        <div class="list-form">
+                            <input type="text" id="new-list-name" placeholder="Nom de la liste">
+                            <textarea id="new-list-items" placeholder="Un mot par ligne"></textarea>
+                            <button id="add-list-btn">Ajouter la liste</button>
+                        </div>
+                        <div class="existing-lists" id="existing-lists">
+                            <!-- Les listes seront ajoutées ici dynamiquement -->
+                        </div>
+                    </div>
+                </div>
+                <div class="oracle-drawer">
+                    <h3>Tirage aléatoire</h3>
+                    <select id="list-select">
+                        <option value="">Choisir une liste...</option>
+                    </select>
+                    <div class="draw-controls">
+                        <input type="number" id="draw-count" min="1" max="10" value="1">
+                        <button id="draw-btn">Tirer</button>
+                    </div>
+                    <div class="draw-result" id="draw-result">
+                        <!-- Résultat du tirage -->
+                    </div>
+                    <div class="draw-history" id="draw-history">
+                        <h4>Historique des tirages</h4>
+                        <ul id="history-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section Feuille de Personnage -->
+        <section id="character" class="section">
+            <h2>Feuille de Personnage</h2>
+            <div class="character-container">
+                <!-- Description du personnage -->
+                <div class="character-description">
+                    <h3>Description</h3>
+                    <div class="description-input">
+                        <input type="text" id="character-name" placeholder="Nom du personnage">
+                        <input type="text" id="character-adjective" placeholder="Adjectif (ex: impétueux)">
+                        <input type="text" id="character-role" placeholder="Rôle (ex: mage)">
+                    </div>
+                    <div class="character-full-description">
+                        <p id="full-description">Personnage non défini</p>
+                    </div>
+                </div>
+
+                <!-- Caractéristiques -->
+                <div class="character-stats">
+                    <h3>Caractéristiques (2-4)</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card" data-stat="corps">
+                            <h4>Corps</h4>
+                            <div class="stat-value">
+                                <button class="stat-btn minus" data-stat="corps">-</button>
+                                <span id="corps-value">2</span>
+                                <button class="stat-btn plus" data-stat="corps">+</button>
+                            </div>
+                            <div class="stat-dots" id="corps-dots">
+                                <span class="dot">•</span>
+                                <span class="dot">•</span>
+                                <span class="dot empty">•</span>
+                                <span class="dot empty">•</span>
+                            </div>
+                        </div>
+                        <div class="stat-card" data-stat="ame">
+                            <h4>Âme</h4>
+                            <div class="stat-value">
+                                <button class="stat-btn minus" data-stat="ame">-</button>
+                                <span id="ame-value">2</span>
+                                <button class="stat-btn plus" data-stat="ame">+</button>
+                            </div>
+                            <div class="stat-dots" id="ame-dots">
+                                <span class="dot">•</span>
+                                <span class="dot">•</span>
+                                <span class="dot empty">•</span>
+                                <span class="dot empty">•</span>
+                            </div>
+                        </div>
+                        <div class="stat-card" data-stat="esprit">
+                            <h4>Esprit</h4>
+                            <div class="stat-value">
+                                <button class="stat-btn minus" data-stat="esprit">-</button>
+                                <span id="esprit-value">2</span>
+                                <button class="stat-btn plus" data-stat="esprit">+</button>
+                            </div>
+                            <div class="stat-dots" id="esprit-dots">
+                                <span class="dot">•</span>
+                                <span class="dot">•</span>
+                                <span class="dot empty">•</span>
+                                <span class="dot empty">•</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stats-summary">
+                        <p>Total : <span id="total-stats">6</span>/12</p>
+                    </div>
+                </div>
+
+                <!-- Thèmes de dons -->
+                <div class="character-themes">
+                    <h3>Thèmes de Dons</h3>
+                    <p class="themes-explanation">
+                        Chaque thème contient une liste de dons. 
+                        Le nombre de dons dans un thème détermine sa valeur (2-4).
+                    </p>
+                    <div class="themes-grid">
+                        <div class="theme-card" data-theme="theme1">
+                            <h4>Thème 1 <input type="text" class="theme-name" data-theme="theme1" placeholder="Nom du thème"></h4>
+                            <div class="theme-stats">
+                                <span>Valeur : <span class="theme-value" data-theme="theme1">0</span></span>
+                                <span class="theme-dots" data-theme="theme1"></span>
+                            </div>
+                            <div class="theme-gifts">
+                                <input type="text" class="new-gift-input" data-theme="theme1" placeholder="Nouveau don">
+                                <button class="add-gift-btn" data-theme="theme1">Ajouter</button>
+                                <ul class="gifts-list" data-theme="theme1"></ul>
+                            </div>
+                        </div>
+                        <div class="theme-card" data-theme="theme2">
+                            <h4>Thème 2 <input type="text" class="theme-name" data-theme="theme2" placeholder="Nom du thème"></h4>
+                            <div class="theme-stats">
+                                <span>Valeur : <span class="theme-value" data-theme="theme2">0</span></span>
+                                <span class="theme-dots" data-theme="theme2"></span>
+                            </div>
+                            <div class="theme-gifts">
+                                <input type="text" class="new-gift-input" data-theme="theme2" placeholder="Nouveau don">
+                                <button class="add-gift-btn" data-theme="theme2">Ajouter</button>
+                                <ul class="gifts-list" data-theme="theme2"></ul>
+                            </div>
+                        </div>
+                        <div class="theme-card" data-theme="theme3">
+                            <h4>Thème 3 <input type="text" class="theme-name" data-theme="theme3" placeholder="Nom du thème"></h4>
+                            <div class="theme-stats">
+                                <span>Valeur : <span class="theme-value" data-theme="theme3">0</span></span>
+                                <span class="theme-dots" data-theme="theme3"></span>
+                            </div>
+                            <div class="theme-gifts">
+                                <input type="text" class="new-gift-input" data-theme="theme3" placeholder="Nouveau don">
+                                <button class="add-gift-btn" data-theme="theme3">Ajouter</button>
+                                <ul class="gifts-list" data-theme="theme3"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sauvegarde et export -->
+                <div class="character-save">
+                    <h3>Sauvegarde</h3>
+                    <div class="save-controls">
+                        <button id="save-character-btn">Sauvegarder dans les cookies</button>
+                        <button id="load-character-btn">Charger depuis les cookies</button>
+                        <button id="new-character-btn">Nouveau personnage</button>
+                    </div>
+                    <div class="export-controls">
+                        <h4>Export/Import JSON</h4>
+                        <textarea id="export-json" rows="5" placeholder="JSON sera affiché ici"></textarea>
+                        <div class="export-buttons">
+                            <button id="export-btn">Exporter</button>
+                            <button id="import-btn">Importer</button>
+                            <button id="copy-btn">Copier</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section Journal d'Aventure -->
+        <section id="journal" class="section">
+            <h2>Journal d'Aventure</h2>
+            <div class="journal-container">
+                <div class="journal-entry-form">
+                    <h3>Nouvelle entrée</h3>
+                    <input type="text" id="entry-title" placeholder="Titre de l'entrée">
+                    <textarea id="entry-content" rows="5" placeholder="Contenu de l'entrée"></textarea>
+                    <button id="add-entry-btn">Ajouter l'entrée</button>
+                </div>
+                <div class="journal-entries">
+                    <h3>Entrées du journal</h3>
+                    <div id="entries-list">
+                        <!-- Les entrées seront ajoutées ici -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pied de page -->
+        <footer>
+            <p>Mon One Page - Jeu de Rôle Solo | Données sauvegardées dans les cookies</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
