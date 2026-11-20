@@ -610,8 +610,11 @@ function updateGiftsList(themeId) {
         giftsList.appendChild(li);
     });
     
-    // Mettre à jour la valeur du thème
-    updateThemesDisplay();
+    // NB : on ne rappelle PAS updateThemesDisplay() ici, sinon les deux
+    // fonctions s'appellent l'une l'autre sans fin (plantage « Maximum
+    // call stack size exceeded ») et AUCUN bouton de la page ne fonctionne.
+    // Les fonctions qui modifient les dons (addGift, deleteGift) mettent
+    // déjà à jour les thèmes elles-mêmes après avoir appelé celle-ci.
 }
 
 /**
