@@ -15,18 +15,83 @@
                 <button class="nav-btn active" data-section="oracle">Oracle</button>
                 <button class="nav-btn" data-section="character">Feuille de Personnage</button>
                 <button class="nav-btn" data-section="journal">Journal d'Aventure</button>
+                <button class="nav-btn" data-section="games">Parties</button>
             </nav>
-            <!-- Barre de gestion des parties : permet de créer, renommer,
-                 changer et supprimer des parties (une partie = 1 personnage,
-                 1 oracle et 1 journal) -->
-            <div class="game-bar">
-                <label for="game-select">Partie :</label>
-                <select id="game-select"></select>
-                <button id="new-game-btn" title="Créer une nouvelle partie">Nouvelle</button>
-                <button id="rename-game-btn" title="Renommer la partie courante">Renommer</button>
-                <button id="delete-game-btn" title="Supprimer la partie courante">Supprimer</button>
-            </div>
         </header>
+
+        <!-- Section Parties : gestion des parties, partage inter-parties
+             (personnage, listes d'Oracle) et sauvegarde/export -->
+        <section id="games" class="section">
+            <h2>Gestion des Parties</h2>
+            <div class="games-container">
+
+                <!-- Gestion des parties : permettre de créer, renommer,
+                     changer et supprimer des parties (une partie = 1 personnage,
+                     1 oracle et 1 journal) -->
+                <div class="game-manager">
+                    <h3>Vos parties</h3>
+                    <div class="game-bar">
+                        <label for="game-select">Partie :</label>
+                        <select id="game-select"></select>
+                        <button id="new-game-btn" title="Créer une nouvelle partie">Nouvelle</button>
+                        <button id="rename-game-btn" title="Renommer la partie courante">Renommer</button>
+                        <button id="delete-game-btn" title="Supprimer la partie courante">Supprimer</button>
+                    </div>
+                </div>
+
+                <!-- Import depuis une autre partie : copier le personnage
+                     et/ou des listes de mots venant d'une autre partie,
+                     sans toucher à la partie source -->
+                <div class="cross-import">
+                    <h3>Importer depuis une autre partie</h3>
+                    <p class="themes-explanation">
+                        Choisissez une partie source, cochez ce que vous voulez
+                        recopier dans la partie courante, puis cliquez sur
+                        « Importer la sélection ». La partie source n'est pas modifiée.
+                    </p>
+                    <label for="cross-game-select">Partie source :</label>
+                    <select id="cross-game-select">
+                        <option value="">Choisir une partie...</option>
+                    </select>
+                    <div id="cross-options" class="cross-options">
+                        <label class="cross-option">
+                            <input type="checkbox" id="cross-character-chk">
+                            Personnage complet (remplace le personnage actuel)
+                        </label>
+                        <h4>Listes d'Oracle à importer :</h4>
+                        <div id="cross-lists-box">
+                            <!-- Les cases des listes seront ajoutées ici dynamiquement -->
+                        </div>
+                    </div>
+                    <button id="cross-import-btn">Importer la sélection</button>
+                </div>
+
+                <!-- Sauvegarde et export (déplacé depuis la Feuille de Personnage) -->
+                <div class="character-save">
+                    <h3>Sauvegarde</h3>
+                    <p class="themes-explanation">
+                        La sauvegarde est automatique, mais vous pouvez forcer
+                        une écriture immédiate. Le JSON sert à transporter
+                        vos données vers un autre appareil ou en copie de secours.
+                    </p>
+                    <div class="save-controls">
+                        <button id="save-character-btn">Sauvegarder maintenant</button>
+                        <button id="load-character-btn">Recharger depuis le navigateur</button>
+                        <button id="new-character-btn">Nouveau personnage</button>
+                    </div>
+                    <div class="export-controls">
+                        <h4>Export/Import JSON (toutes les parties)</h4>
+                        <textarea id="export-json" rows="5" placeholder="JSON sera affiché ici"></textarea>
+                        <div class="export-buttons">
+                            <button id="export-btn">Exporter</button>
+                            <button id="import-btn">Importer</button>
+                            <button id="copy-btn">Copier</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
 
         <!-- Section Oracle -->
         <section id="oracle" class="section active">
@@ -182,24 +247,6 @@
                     </div>
                 </div>
 
-                <!-- Sauvegarde et export -->
-                <div class="character-save">
-                    <h3>Sauvegarde</h3>
-                    <div class="save-controls">
-                        <button id="save-character-btn">Sauvegarder dans les cookies</button>
-                        <button id="load-character-btn">Charger depuis les cookies</button>
-                        <button id="new-character-btn">Nouveau personnage</button>
-                    </div>
-                    <div class="export-controls">
-                        <h4>Export/Import JSON</h4>
-                        <textarea id="export-json" rows="5" placeholder="JSON sera affiché ici"></textarea>
-                        <div class="export-buttons">
-                            <button id="export-btn">Exporter</button>
-                            <button id="import-btn">Importer</button>
-                            <button id="copy-btn">Copier</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </section>
 

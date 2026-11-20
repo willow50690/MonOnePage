@@ -941,3 +941,47 @@ footer {
 .secondary-btn {
     background-color: var(--secondary-color, #7f8c8d);
 }
+
+/* ============================================
+   Onglet "Parties" : gestion, partage, sauvegarde
+   ============================================ */
+
+/* Conteneur de l'onglet Parties : les blocs empilés, largeur raisonnable */
+.games-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+/* Bloc "Importer depuis une autre partie" */
+.cross-import {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: var(--border-radius, 8px);
+    padding: 15px;
+}
+
+/* Choix de la partie source */
+.cross-import select {
+    width: 100%;
+    padding: 8px;
+    border-radius: var(--border-radius, 8px);
+    border: 1px solid var(--border-color, #ddd);
+    margin: 5px 0 15px 0;
+}
+
+/* Lignes de cases à cocher (personnage complet, listes à importer) */
+.cross-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    cursor: pointer;
+}
+
+/* Petit espace avant la liste des listes d'Oracle */
+#cross-lists-box {
+    margin-top: 5px;
+}
