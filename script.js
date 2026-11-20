@@ -531,6 +531,144 @@ function deleteGame() {
 }
 
 // ============================================
+// Partage entre parties (onglet "Parties")
+// ============================================
+
+/**
+ * Remplit le sélecteur de partie source avec toutes les parties SAUF
+ * la partie courante (on ne peut s'importer soi-même).
+ * Puis affiche les éléments importables pour la première partie founde.
+ */
+function renderCrossControls() {
+    const select = document.getElementById('cross-game-select');
+    const optionsBox = document.getElementById('cross-options');
+    const importBtn = document.getElementById('cross-import-btn');
+    select.innerHTML = '';
+
+    const others = appData.games.filter(g => g.id !== appData.currentGameId);
+
+    // Cas simple : il n'y a qu'une partie, rien à importer
+    if (others.length === 0) {
+        select.innerHTML = '<option value="">Aucune autre partie</option>';
+        optionsBox.style.display = 'none';
+        importBtn.disabled = true;
+        return;
+    }
+
+    optionsBox.style.display = '';
+    importBtn.disabled = false;
+
+    others.forEach(game => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        const hero = game.character && game.character.description.name;
+        option.textContent = hero ? `${game.name} — ${hero}` : game.name;
+        select.appendChild(option);
+    });
+
+    // Afficher le contenu de la première partie de la liste
+    renderCrossLists(others[0].id);
+}
+
+/**
+ * Affiche les listes d'Oracle de la partie source, sous forme de cases
+ * à cocher, pour choisir quoi importer.
+ * @param {string} sourceId - Identifiant de la partie source
+ */
+function renderCrossLists(sourceId) {
+    const box = document.getElementById('cross-lists-box');
+    box.innerHTML = '';
+
+    const source = appData.games.find(g => g.id === sourceId);
+    if (!source || source.oracle.lists.length === 0) {
+        box.innerHTML = '<p>Aucune liste de mots dans cette partie.</p>';
+        return;
+    }
+
+    source.oracle.lists.forEach(list => {
+        const label = document.createElement('label');
+        label.className = 'cross-option';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'cross-list-chk';
+        checkbox.dataset.listId = list.id;
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(` ${list.name} (${list.items.length} mots)`));
+        box.appendChild(label);
+    });
+}
+
+/**
+ * Importe dans la partie courante ce qui est coché dans l'onglet
+ * "Parties" : le personnage complet de la partie source et/ou les
+ * listes d'Oracle cochées. La partie source n'est jamais modifiée.
+ */
+function importCrossData() {
+    const sourceId = document.getElementById('cross-game-select').value;
+    const source = appData.games.find(g => g.id === sourceId);
+
+    if (!source) {
+        showNotification('Veuillez choisir une partie source', 'error');
+        return;
+    }
+
+    // Ce que le joueur a coché
+    const wantCharacter = document.getElementById('cross-character-chk').checked;
+    const listIds = [];
+    document.querySelectorAll('.cross-list-chk:checked').forEach(cb => {
+        listIds.push(cb.dataset.listId);
+    });
+
+    if (!wantCharacter && listIds.length === 0) {
+        showNotification('Cochez au moins un élément à importer', 'error');
+        return;
+    }
+
+    if (!confirm('Importer la sélection dans la partie courante ?')) {
+        return;
+    }
+
+    const game = getGame();
+
+    // 1) Personnage : on copie une copie profonde (indépendante de la source)
+    if (wantCharacter) {
+        game.character = normalizeCharacter(JSON.parse(JSON.stringify(source.character)));
+    }
+
+    // 2) Listes d'Oracle : nouvelles identifiants, contenus copiés ;
+    //    si un nom existe déjà, on ajoute " (importé)" pour distinguer.
+    let importedLists = 0;
+    const existingNames = new Set(game.oracle.lists.map(list => list.name));
+    source.oracle.lists.forEach(list => {
+        if (listIds.includes(list.id)) {
+            let name = list.name;
+            if (existingNames.has(name)) {
+                name = `${name} (importé)`;
+            }
+            game.oracle.lists.push({
+                id: generateId(),
+                name: name,
+                items: list.items.slice()
+            });
+            existingNames.add(name);
+            importedLists++;
+        }
+    });
+
+    persist();
+
+    // Rafraîchir l'interface : personnage, listes et panneaux de partage
+    updateCharacterUI();
+    renderWordLists();
+    renderListSelect();
+    renderCrossControls();
+
+    showNotification(`Import terminé : ${importedLists} liste(s)${wantCharacter ? ' + personnage' : ''}`);
+}
+
+// ============================================
 // Oracle
 // ============================================
 
@@ -1239,6 +1377,7 @@ function refreshAllUI() {
     renderListSelect();
     renderJournalEntries();
     renderHistory();
+    renderCrossControls();
 }
 
 /**
@@ -1294,6 +1433,12 @@ function setupEventListeners() {
     document.getElementById('new-game-btn').addEventListener('click', () => createGame());
     document.getElementById('rename-game-btn').addEventListener('click', renameGame);
     document.getElementById('delete-game-btn').addEventListener('click', deleteGame);
+
+    // Partage entre parties
+    document.getElementById('cross-game-select').addEventListener('change', (e) => {
+        renderCrossLists(e.target.value);
+    });
+    document.getElementById('cross-import-btn').addEventListener('click', importCrossData);
 
     // Oracle
     document.getElementById('add-list-btn').addEventListener('click', addWordList);
