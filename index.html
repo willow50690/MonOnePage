@@ -16,6 +16,16 @@
                 <button class="nav-btn" data-section="character">Feuille de Personnage</button>
                 <button class="nav-btn" data-section="journal">Journal d'Aventure</button>
             </nav>
+            <!-- Barre de gestion des parties : permet de créer, renommer,
+                 changer et supprimer des parties (une partie = 1 personnage,
+                 1 oracle et 1 journal) -->
+            <div class="game-bar">
+                <label for="game-select">Partie :</label>
+                <select id="game-select"></select>
+                <button id="new-game-btn" title="Créer une nouvelle partie">Nouvelle</button>
+                <button id="rename-game-btn" title="Renommer la partie courante">Renommer</button>
+                <button id="delete-game-btn" title="Supprimer la partie courante">Supprimer</button>
+            </div>
         </header>
 
         <!-- Section Oracle -->
@@ -29,6 +39,7 @@
                             <input type="text" id="new-list-name" placeholder="Nom de la liste">
                             <textarea id="new-list-items" placeholder="Un mot par ligne"></textarea>
                             <button id="add-list-btn">Ajouter la liste</button>
+                            <button id="restore-lists-btn" class="secondary-btn">Restaurer les listes d'exemple</button>
                         </div>
                         <div class="existing-lists" id="existing-lists">
                             <!-- Les listes seront ajoutées ici dynamiquement -->
@@ -213,7 +224,7 @@
 
         <!-- Pied de page -->
         <footer>
-            <p>Mon One Page - Jeu de Rôle Solo | Données sauvegardées dans les cookies</p>
+            <p>Mon One Page - Jeu de Rôle Solo | Données sauvegardées dans le navigateur (stockage local + cookie), exportables en JSON</p>
         </footer>
     </div>
 

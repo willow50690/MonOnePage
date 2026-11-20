@@ -892,3 +892,52 @@ footer {
 ::-webkit-scrollbar-thumb:hover {
     background: #2980b9;
 }
+
+/* ============================================
+   Gestion des parties (barre au-dessus des sections)
+   ============================================ */
+
+/* Barre affichée en haut de page : le menu des parties + ses boutons */
+.game-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+    padding: 10px;
+    background-color: var(--dark-color, #2c3e50);
+    border-radius: var(--border-radius, 8px);
+}
+
+/* Étiquette "Partie :" */
+.game-bar label {
+    color: white;
+    font-weight: bold;
+}
+
+/* Menu déroulant des parties : le laisser souple et lisible à l'écran */
+.game-bar select {
+    flex: 1 1 200px;
+    max-width: 320px;
+    padding: 8px;
+    border-radius: var(--border-radius, 8px);
+    border: none;
+    font-size: 1em;
+}
+
+/* Sur petite écran (téléphone), les boutons se replient sur deux lignes */
+@media (max-width: 480px) {
+    .game-bar {
+        flex-direction: column;
+    }
+    .game-bar select {
+        max-width: 100%;
+        width: 100%;
+    }
+}
+
+/* Bouton secondaire (gris) : utilisé pour "Restaurer les listes d'exemple" */
+.secondary-btn {
+    background-color: var(--secondary-color, #7f8c8d);
+}
