@@ -995,7 +995,6 @@ function updateStatsDisplay() {
     // Valeurs et points de chaque caractéristique
     STAT_KEYS.forEach(key => {
         document.getElementById(`${key}-value`).textContent = stats[key];
-        updateStatDots(key, stats[key]);
     });
 
     // Total
@@ -1007,27 +1006,6 @@ function updateStatsDisplay() {
     // Les listes du lanceur de dés affichent les valeurs des
     // caractéristiques : il faut les reconstruire après un changement
     renderDiceOptions();
-}
-
-/**
- * Met à jour l'affichage des points pour une caractéristique
- * (6 points au lieu de 4 depuis la version à 6 caractéristiques)
- * @param {string} stat - Nom (clé) de la caractéristique
- * @param {number} value - Valeur de la caractéristique
- */
-function updateStatDots(stat, value) {
-    const dotsContainer = document.getElementById(`${stat}-dots`);
-    dotsContainer.innerHTML = '';
-
-    for (let i = 0; i < STAT_MAX; i++) {
-        const dot = document.createElement('span');
-        dot.className = 'dot';
-        if (i >= value) {
-            dot.classList.add('empty');
-        }
-        dot.textContent = '•';
-        dotsContainer.appendChild(dot);
-    }
 }
 
 /**
@@ -1487,8 +1465,13 @@ function renderDiceOptions() {
     }
 
     // Liste 3 : les thèmes (valeur = valeur du thème selon ses dons)
+    // La première option permet de ne choisir AUCUN thème
     const selectTheme = document.getElementById('dice-theme');
     selectTheme.innerHTML = '';
+    const noTheme = document.createElement('option');
+    noTheme.value = '';
+    noTheme.textContent = '— Aucun —';
+    selectTheme.appendChild(noTheme);
     ['theme1', 'theme2', 'theme3'].forEach(themeId => {
         const theme = themes[themeId];
         const option = document.createElement('option');
@@ -1503,15 +1486,14 @@ function renderDiceOptions() {
     }
 
     // Liste 4 : les objets d'équipement (valeur = bonus)
+    // La première option permet de ne choisir AUCUN objet
     const selectEquip = document.getElementById('dice-equip');
     selectEquip.innerHTML = '';
-    if (equipment.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = '— Aucun objet —';
-        option.disabled = true;
-        selectEquip.appendChild(option);
-    } else {
+    const noEquip = document.createElement('option');
+    noEquip.value = '';
+    noEquip.textContent = '— Aucun —';
+    selectEquip.appendChild(noEquip);
+    if (equipment.length > 0) {
         equipment.forEach(item => {
             const option = document.createElement('option');
             option.value = item.id;
@@ -1615,6 +1597,7 @@ function rollDice(mode = 'normal') {
         diceDetail = `2d20 → ${a} et ${b}, on garde ${d20}`;
     } else {
         d20 = rollD20();
+        diceDetail = `1d20 → ${d20}`;
     }
 
     const total = sum + d20;

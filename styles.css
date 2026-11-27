@@ -344,7 +344,7 @@ nav {
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 15px;
     margin-bottom: 15px;
 }
@@ -407,32 +407,7 @@ nav {
     cursor: not-allowed;
 }
 
-.stat-dots {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-}
 
-.stat-dots .dot {
-    font-size: 1.5em;
-    color: var(--secondary-color);
-}
-
-.stat-dots .dot.empty {
-    color: #ddd;
-}
-
-.stats-summary {
-    text-align: center;
-    padding: 10px;
-    background-color: white;
-    border-radius: var(--border-radius);
-    font-weight: bold;
-}
-
-.stats-summary span {
-    color: var(--secondary-color);
-}
 
 .character-themes {
     background-color: var(--light-color);
