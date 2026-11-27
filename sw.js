@@ -12,7 +12,7 @@
 // Nom du cache : PRÉCISER la version quand les fichiers du site changent
 // (ex. 'mononepage-v2'), pour que les tablettes rechargent le nouveau contenu
 // au lieu de garder l'ancien.
-const CACHE_NAME = 'mononepage-v1';
+const CACHE_NAME = 'mononepage-v2';
 
 // Fichiers à mettre en cache dès la première visite
 const ASSETS = [
