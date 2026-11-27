@@ -1003,7 +1003,10 @@ function updateStatsDisplay() {
     document.getElementById('total-stats').textContent = total;
 
     updateStatButtons();
-    updateDiceFormula();
+
+    // Les listes du lanceur de dés affichent les valeurs des
+    // caractéristiques : il faut les reconstruire après un changement
+    renderDiceOptions();
 }
 
 /**
@@ -1097,7 +1100,9 @@ function updateThemesDisplay() {
         updateThemeDots(themeId, themeValue);
         updateGiftsList(themeId);
     });
-    updateDiceFormula();
+
+    // La valeur des thèmes sert au lanceur de dés : reconstruire les listes
+    renderDiceOptions();
 }
 
 /**
@@ -1361,7 +1366,7 @@ function renderEquipment() {
     const equipment = getGame().equipment;
     if (equipment.length === 0) {
         list.innerHTML = '<li class="equipment-empty">Aucun objet. Cliquez sur « Nouveau » !</li>';
-        updateDiceFormula();
+        renderDiceOptions();
         return;
     }
 
@@ -1377,7 +1382,10 @@ function renderEquipment() {
         `;
         list.appendChild(li);
     });
-    updateDiceFormula();
+
+    // Un objet ajouté ou supprimé doit apparaître/disparaître
+    // dans la liste de choix du lanceur de dés
+    renderDiceOptions();
 }
 
 /**
@@ -1443,6 +1451,15 @@ function renderDiceOptions() {
     const themes = getGame().character.themes;
     const equipment = getGame().equipment;
 
+    // Se souvenir de ce que le joueur avait choisi, pour ne pas
+    // lui faire perdre sa sélection quand on reconstruit les listes
+    const previous = {
+        stat1: document.getElementById('dice-stat1').value,
+        stat2: document.getElementById('dice-stat2').value,
+        theme: document.getElementById('dice-theme').value,
+        equip: document.getElementById('dice-equip').value
+    };
+
     // Liste 1 : Corps / Âme / Esprit
     const select1 = document.getElementById('dice-stat1');
     select1.innerHTML = '';
@@ -1452,6 +1469,9 @@ function renderDiceOptions() {
         option.textContent = `${STAT_LABELS[key]} (${stats[key]})`;
         select1.appendChild(option);
     });
+    if (previous.stat1) {
+        select1.value = previous.stat1;
+    }
 
     // Liste 2 : Précision / Puissance / Potentiel
     const select2 = document.getElementById('dice-stat2');
@@ -1462,6 +1482,9 @@ function renderDiceOptions() {
         option.textContent = `${STAT_LABELS[key]} (${stats[key]})`;
         select2.appendChild(option);
     });
+    if (previous.stat2) {
+        select2.value = previous.stat2;
+    }
 
     // Liste 3 : les thèmes (valeur = valeur du thème selon ses dons)
     const selectTheme = document.getElementById('dice-theme');
@@ -1475,6 +1498,9 @@ function renderDiceOptions() {
         option.textContent = `${themeName} (${themeValue})`;
         selectTheme.appendChild(option);
     });
+    if (previous.theme) {
+        selectTheme.value = previous.theme;
+    }
 
     // Liste 4 : les objets d'équipement (valeur = bonus)
     const selectEquip = document.getElementById('dice-equip');
@@ -1492,6 +1518,10 @@ function renderDiceOptions() {
             option.textContent = `${item.name} (+${item.bonus})`;
             selectEquip.appendChild(option);
         });
+        // Restaurer l'objet choisi (sauf s'il vient d'être supprimé)
+        if (previous.equip && equipment.some(item => item.id === previous.equip)) {
+            selectEquip.value = previous.equip;
+        }
     }
 
     updateDiceFormula();
