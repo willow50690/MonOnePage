@@ -4,30 +4,78 @@
  *
  * Ce script gère toute la logique de l'application :
  * - Parties multiples (plusieurs personnages, oracles et journaux)
+ * - Feuille de personnage : 6 caractéristiques (1-6, total max 18),
+ *   thèmes de dons (avec pop-up de création/édition et bibliothèque),
+ *   équipement (nom, description, bonus) et lanceur de dés
  * - Oracle (gestion des listes et tirages aléatoires)
- * - Feuille de personnage (caractéristiques, thèmes de dons)
  * - Journal d'aventure
  * - Sauvegarde fiable (localStorage + cookie) et export/import JSON
  * - Mode hors-ligne (enregistrement d'un "service worker")
  */
 
 // ============================================
-// Constantes de stockage
+// Constantes
 // ============================================
 
 /**
- * Clé utilisée pour enregistrer les données :
- * - dans le "localStorage" du navigateur (stockage principal, très fiable,
- *   survit au nettoyage du cache et dure des années),
+ * Clés utilisées pour enregistrer les données :
+ * - dans le "localStorage" du navigateur (stockage principal, très fiable),
  * - dans un cookie (secours, pour rester compatible avec les anciennes données).
  */
 const STORAGE_KEY = 'monOnePageData';
 const COOKIE_KEY = 'monOnePageData';
 
 /**
- * Listes de mots d'exemple pour l'Oracle.
- * Elles sont ajoutées en un clic avec "Restaurer les listes d'exemple",
- * uniquement si elles ne sont pas déjà présentes.
+ * Les 6 caractéristiques : clé interne -> nom affiché.
+ * Chacune va de 1 à 6, vaut 2 par défaut, et le total ne dépasse pas 18.
+ */
+const STAT_KEYS = ['corps', 'ame', 'esprit', 'precision', 'puissance', 'potentiel'];
+const STAT_LABELS = {
+    corps: 'Corps',
+    ame: 'Âme',
+    esprit: 'Esprit',
+    precision: 'Précision',
+    puissance: 'Puissance',
+    potentiel: 'Potentiel'
+};
+const STAT_MIN = 1;      // valeur minimale d'une caractéristique
+const STAT_MAX = 6;      // valeur maximale d'une caractéristique
+const TOTAL_MAX = 18;    // total maximum des 6 caractéristiques
+
+/**
+ * Valeur d'un thème selon le nombre de dons qu'il possède :
+ * 1 à 2 dons -> 1 ; 3 à 5 -> 2 ; 6 à 9 -> 4 ; 10 et plus -> 5 (maximum).
+ */
+const THEME_MAX = 5;
+function themeValueFromGifts(giftCount) {
+    if (giftCount >= 10) return 5;
+    if (giftCount >= 6) return 4;
+    if (giftCount >= 3) return 2;
+    if (giftCount >= 1) return 1;
+    return 0;
+}
+
+/**
+ * Bibliothèque de dons prédéfinis, proposée dans la pop-up de création.
+ * Le joueur peut aussi créer ses propres dons (nom + description libre).
+ */
+const GIFT_LIBRARY = [
+    { name: 'Pas de loup', description: 'Vous vous déplacez sans bruit, même sur terrain difficile.' },
+    { name: 'Œil de lynx', description: 'Vous repérez les détails que d\'autres manquent, de jour comme de nuit.' },
+    { name: 'Mains rapides', description: 'Vous dégainez, crochetez ou attrapez avant que quiconque ne réagisse.' },
+    { name: 'Verbe engageant', description: 'Vos paroles apaisent les colères et convainquent les hésitants.' },
+    { name: 'Vigueur étonnante', description: 'Vous encaissez fatigue, poison et longues marches sans faiblir.' },
+    { name: 'Sens du danger', description: 'Un frisson vous prévient juste avant que le piège ne se referme.' },
+    { name: 'Nez des souterrains', description: 'Vous retrouvez votre chemin et sentez l\'air vicié des profondeurs.' },
+    { name: 'Doigts de fée', description: 'Mécanismes, nœuds et serrures cèdent sous vos mains habiles.' },
+    { name: 'Mémoire parfaite', description: 'Vous vous souvenez de chaque visage, carte et conversation.' },
+    { name: 'Peau de pierre', description: 'Votre chair durcit sous les coups et les chutes.' },
+    { name: 'Cœur vaillant', description: 'Face à la peur, votre courage redresse ceux qui doutent.' },
+    { name: 'Souffle long', description: 'Vous nagez, courez ou vous cachez longtemps sans respirer.' }
+];
+
+/**
+ * Listes de mots d'exemple pour l'Oracle, ajoutées en un clic.
  */
 const DEFAULT_ORACLE_LISTS = [
     {
@@ -57,20 +105,21 @@ const DEFAULT_ORACLE_LISTS = [
 // ============================================
 
 /**
- * Données de l'application.
- * Une "partie" (un jeu) contient son oracle, son personnage et son journal.
- * On peut créer autant de parties que l'on veut et basculer entre elles.
+ * Données de l'application. Une "partie" contient son oracle, son
+ * personnage, son équipement et son journal. On peut en créer autant
+ * que l'on veut et basculer entre elles.
  *
  * Format v2 :
  * {
  *   version: 2,
- *   currentGameId: 'abc123',   // id de la partie actuellement ouverte
- *   games: [                   // toutes les parties du joueur
+ *   currentGameId: 'abc123',
+ *   games: [
  *     {
- *       id: 'abc123',          // identifiant unique de la partie
- *       name: 'Ma partie',     // nom affiché dans le menu déroulant
+ *       id: 'abc123',
+ *       name: 'Ma partie',
  *       oracle: { lists: [...], history: [...] },
- *       character: { description: {...}, stats: {...}, themes: {...} },
+ *       character: { description: {...}, stats: {...6 clés...}, themes: {...} },
+ *       equipment: [ {id, name, description, bonus}, ... ],
  *       journal: [ ... ]
  *     },
  *     ...
@@ -82,6 +131,16 @@ let appData = {
     currentGameId: null,
     games: []
 };
+
+/**
+ * État de la fenêtre modale (pop-up) des dons et de l'équipement :
+ * quel mode est ouvert ('gift-new', 'gift-edit', 'equip-new', 'equip-edit')
+ * et sur quel thème / quel objet on travaille.
+ */
+const modalState = { mode: null, themeId: null, giftIndex: null, equipmentId: null };
+
+/** État de la petite fenêtre d'information d'un objet d'équipement. */
+const infoState = { equipmentId: null };
 
 // ============================================
 // Fonctions utilitaires
@@ -114,21 +173,15 @@ function formatDate(date) {
 }
 
 /**
- * Crée un objet "personnage" vide (valeurs par défaut)
- * @returns {Object} Un personnage vierge
+ * Crée un objet "personnage" vide (valeurs par défaut).
+ * Les dons sont des objets { name, description } (plus de simples textes).
  */
 function createEmptyCharacter() {
+    const stats = {};
+    STAT_KEYS.forEach(key => { stats[key] = 2; });
     return {
-        description: {
-            name: '',
-            adjective: '',
-            role: ''
-        },
-        stats: {
-            corps: 2,
-            ame: 2,
-            esprit: 2
-        },
+        description: { name: '', adjective: '', role: '' },
+        stats: stats,
         themes: {
             theme1: { name: '', gifts: [] },
             theme2: { name: '', gifts: [] },
@@ -138,7 +191,8 @@ function createEmptyCharacter() {
 }
 
 /**
- * Crée une nouvelle partie vierge (oracle vide, personnage neuf, journal vide)
+ * Crée une nouvelle partie vierge (oracle vide, personnage neuf,
+ * équipement vide, journal vide)
  * @param {string} name - Nom de la partie affiché dans le menu
  * @returns {Object} La nouvelle partie
  */
@@ -148,20 +202,31 @@ function createEmptyGame(name) {
         name: name,
         oracle: { lists: [], history: [] },
         character: createEmptyCharacter(),
+        equipment: [],
         journal: []
     };
 }
 
 /**
- * Complète un personnage partiel (venu d'une sauvegarde incomplète)
- * pour qu'il possède toujours toutes ses propriétés.
+ * Complète un personnage partiel (venu d'une sauvegarde incomplète ou
+ * d'une ancienne version) pour qu'il possède toujours toutes ses
+ * propriétés : 6 caractéristiques (1-6), 3 thèmes, dons en objets.
  * @param {Object} raw - Personnage brut éventuellement incomplet
  * @returns {Object} Personnage complet et sûr à utiliser
  */
 function normalizeCharacter(raw) {
     const character = Object.assign(createEmptyCharacter(), raw || {});
     character.description = Object.assign({ name: '', adjective: '', role: '' }, character.description || {});
-    character.stats = Object.assign({ corps: 2, ame: 2, esprit: 2 }, character.stats || {});
+
+    // Caractéristiques : les 6 existent, en nombres bornés entre 1 et 6
+    character.stats = Object.assign(createEmptyCharacter().stats, character.stats || {});
+    STAT_KEYS.forEach(key => {
+        let value = character.stats[key];
+        if (typeof value !== 'number' || isNaN(value)) {
+            value = 2;
+        }
+        character.stats[key] = Math.min(STAT_MAX, Math.max(STAT_MIN, Math.round(value)));
+    });
 
     // Les trois thèmes doivent TOUJOURS exister (sinon plantage à l'affichage)
     const themes = Object.assign({
@@ -170,19 +235,25 @@ function normalizeCharacter(raw) {
         theme3: { name: '', gifts: [] }
     }, character.themes || {});
     ['theme1', 'theme2', 'theme3'].forEach(themeId => {
+        // Les dons étaient autrefois de simples textes : les convertir
+        // en objets { name, description }
+        let gifts = themes[themeId] && themes[themeId].gifts;
+        if (typeof gifts === 'string') {
+            // Un seul don stocké comme texte : en faire une liste
+            gifts = [gifts];
+        } else if (!Array.isArray(gifts)) {
+            gifts = [];
+        }
         themes[themeId] = {
             name: (themes[themeId] && themes[themeId].name) || '',
-            gifts: Array.isArray(themes[themeId] && themes[themeId].gifts) ? themes[themeId].gifts : []
+            gifts: gifts
+                .map(gift => typeof gift === 'string'
+                    ? { name: gift, description: '' }
+                    : { name: (gift && gift.name) || '', description: (gift && gift.description) || '' })
+                .filter(gift => gift.name)
         };
     });
     character.themes = themes;
-
-    // Les valeurs des caractéristiques doivent être des nombres
-    ['corps', 'ame', 'esprit'].forEach(stat => {
-        if (typeof character.stats[stat] !== 'number') {
-            character.stats[stat] = 2;
-        }
-    });
 
     return character;
 }
@@ -214,6 +285,7 @@ function normalizeData(raw) {
                 name: 'Partie 1',
                 oracle: raw.oracle || { lists: [], history: [] },
                 character: raw.character,
+                equipment: Array.isArray(raw.equipment) ? raw.equipment : [],
                 journal: Array.isArray(raw.journal) ? raw.journal : []
             }]
         };
@@ -231,6 +303,15 @@ function normalizeData(raw) {
             history: Array.isArray(g.oracle && g.oracle.history) ? g.oracle.history : []
         },
         character: normalizeCharacter(g.character),
+        // Équipement : liste d'objets {id, name, description, bonus}
+        equipment: (Array.isArray(g.equipment) ? g.equipment : [])
+            .map(eq => ({
+                id: (eq && eq.id) || generateId(),
+                name: (eq && eq.name) || '',
+                description: (eq && eq.description) || '',
+                bonus: (eq && typeof eq.bonus === 'number' && !isNaN(eq.bonus)) ? eq.bonus : 0
+            }))
+            .filter(eq => eq.name),
         journal: Array.isArray(g.journal) ? g.journal : []
     }));
 
@@ -356,12 +437,10 @@ function clearStoredData() {
  * @param {string} type - Type de notification ('success', 'error', 'info')
  */
 function showNotification(message, type = 'success') {
-    // Créer un élément de notification
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
 
-    // Ajouter des styles
     notification.style.cssText = `
         position: fixed;
         bottom: 20px;
@@ -378,7 +457,6 @@ function showNotification(message, type = 'success') {
 
     document.body.appendChild(notification);
 
-    // Supprimer après 3 secondes
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => notification.remove(), 300);
@@ -408,22 +486,18 @@ async function copyToClipboard(text) {
  * @param {string} sectionId - ID de la section à activer
  */
 function switchSection(sectionId) {
-    // Désactiver toutes les sections
     document.querySelectorAll('.section').forEach(section => {
         section.classList.remove('active');
     });
 
-    // Désactiver tous les boutons de navigation
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
     });
 
-    // Activer la section demandée
     const section = document.getElementById(sectionId);
     if (section) {
         section.classList.add('active');
 
-        // Activer le bouton correspondant
         const activeBtn = document.querySelector(`.nav-btn[data-section="${sectionId}"]`);
         if (activeBtn) {
             activeBtn.classList.add('active');
@@ -445,7 +519,6 @@ function renderGameSelect() {
     appData.games.forEach(game => {
         const option = document.createElement('option');
         option.value = game.id;
-        // Afficher aussi le nom du personnage, si on le connaît
         const hero = game.character && game.character.description.name;
         option.textContent = hero ? `${game.name} — ${hero}` : game.name;
         select.appendChild(option);
@@ -480,7 +553,6 @@ function createGame(forcedName) {
         gameName = prompt(`Nom de la nouvelle partie :`, `Partie ${appData.games.length + 1}`);
     }
     if (gameName === null) {
-        // Le joueur a annulé
         return;
     }
     gameName = (gameName || '').trim() || `Partie ${appData.games.length + 1}`;
@@ -537,7 +609,7 @@ function deleteGame() {
 /**
  * Remplit le sélecteur de partie source avec toutes les parties SAUF
  * la partie courante (on ne peut s'importer soi-même).
- * Puis affiche les éléments importables pour la première partie founde.
+ * Puis affiche les éléments importables pour la première partie trouvée.
  */
 function renderCrossControls() {
     const select = document.getElementById('cross-game-select');
@@ -547,7 +619,6 @@ function renderCrossControls() {
 
     const others = appData.games.filter(g => g.id !== appData.currentGameId);
 
-    // Cas simple : il n'y a qu'une partie, rien à importer
     if (others.length === 0) {
         select.innerHTML = '<option value="">Aucune autre partie</option>';
         optionsBox.style.display = 'none';
@@ -566,7 +637,6 @@ function renderCrossControls() {
         select.appendChild(option);
     });
 
-    // Afficher le contenu de la première partie de la liste
     renderCrossLists(others[0].id);
 }
 
@@ -614,7 +684,6 @@ function importCrossData() {
         return;
     }
 
-    // Ce que le joueur a coché
     const wantCharacter = document.getElementById('cross-character-chk').checked;
     const listIds = [];
     document.querySelectorAll('.cross-list-chk:checked').forEach(cb => {
@@ -632,12 +701,12 @@ function importCrossData() {
 
     const game = getGame();
 
-    // 1) Personnage : on copie une copie profonde (indépendante de la source)
+    // 1) Personnage : copie profonde (indépendante de la source)
     if (wantCharacter) {
         game.character = normalizeCharacter(JSON.parse(JSON.stringify(source.character)));
     }
 
-    // 2) Listes d'Oracle : nouvelles identifiants, contenus copiés ;
+    // 2) Listes d'Oracle : nouveaux identifiants, contenus copiés ;
     //    si un nom existe déjà, on ajoute " (importé)" pour distinguer.
     let importedLists = 0;
     const existingNames = new Set(game.oracle.lists.map(list => list.name));
@@ -659,7 +728,6 @@ function importCrossData() {
 
     persist();
 
-    // Rafraîchir l'interface : personnage, listes et panneaux de partage
     updateCharacterUI();
     renderWordLists();
     renderListSelect();
@@ -689,7 +757,6 @@ function addWordList() {
         return;
     }
 
-    // Créer la liste
     const items = listItems.split('\n').map(item => item.trim()).filter(item => item);
 
     const newList = {
@@ -698,15 +765,12 @@ function addWordList() {
         items: items
     };
 
-    // Ajouter à la partie courante
     getGame().oracle.lists.push(newList);
     persist();
 
-    // Réinitialiser le formulaire
     document.getElementById('new-list-name').value = '';
     document.getElementById('new-list-items').value = '';
 
-    // Mettre à jour l'interface
     renderWordLists();
     renderListSelect();
 
@@ -715,7 +779,6 @@ function addWordList() {
 
 /**
  * Réinstalle les listes d'exemple (une seule fois chacune).
- * Les listes déjà présentes (même nom) ne sont pas dupliquées.
  */
 function restoreDefaultLists() {
     const game = getGame();
@@ -781,8 +844,8 @@ function renderWordLists() {
                 <p>${list.items.length} mots</p>
             </div>
             <div class="list-actions">
-                <button class="edit-btn" onclick="editWordList('${list.id}')">Modifier</button>
-                <button class="delete-btn" onclick="deleteWordList('${list.id}')">Supprimer</button>
+                <button class="edit-btn" data-action="edit-word-list" data-list-id="${list.id}">Modifier</button>
+                <button class="delete-btn" data-action="delete-word-list" data-list-id="${list.id}">Supprimer</button>
             </div>
         `;
         container.appendChild(listElement);
@@ -790,7 +853,7 @@ function renderWordLists() {
 }
 
 /**
- * Modifie une liste de mots
+ * Modifie une liste de mots (remplit le formulaire et supprime l'ancienne)
  * @param {string} listId - ID de la liste à modifier
  */
 function editWordList(listId) {
@@ -798,11 +861,9 @@ function editWordList(listId) {
     const list = game.oracle.lists.find(l => l.id === listId);
     if (!list) return;
 
-    // Remplir le formulaire avec les données de la liste
     document.getElementById('new-list-name').value = list.name;
     document.getElementById('new-list-items').value = list.items.join('\n');
 
-    // Supprimer l'ancienne liste
     game.oracle.lists = game.oracle.lists.filter(l => l.id !== listId);
     persist();
     renderWordLists();
@@ -812,7 +873,7 @@ function editWordList(listId) {
 }
 
 /**
- * Met à jour le sélécteur de listes
+ * Met à jour le sélecteur de listes
  */
 function renderListSelect() {
     const select = document.getElementById('list-select');
@@ -845,18 +906,15 @@ function drawRandom() {
         return;
     }
 
-    // Effectuer le tirage
     const results = [];
     for (let i = 0; i < Math.min(count, list.items.length); i++) {
         const randomIndex = Math.floor(Math.random() * list.items.length);
         results.push(list.items[randomIndex]);
     }
 
-    // Afficher les résultats
     const resultContainer = document.getElementById('draw-result');
     resultContainer.innerHTML = results.map(item => `<span class="result-item">${item}</span>`).join('');
 
-    // Ajouter à l'historique
     const historyItem = {
         id: generateId(),
         listId: listId,
@@ -867,14 +925,11 @@ function drawRandom() {
 
     game.oracle.history.unshift(historyItem);
 
-    // Limiter l'historique à 20 entrées
     if (game.oracle.history.length > 20) {
         game.oracle.history.pop();
     }
 
     persist();
-
-    // Mettre à jour l'historique
     renderHistory();
 
     showNotification(`${results.length} résultat(s) tiré(s) de "${list.name}"`);
@@ -904,7 +959,7 @@ function renderHistory() {
 }
 
 // ============================================
-// Feuille de Personnage
+// Feuille de Personnage : description
 // ============================================
 
 /**
@@ -927,40 +982,41 @@ function updateFullDescription() {
     }
 }
 
+// ============================================
+// Feuille de Personnage : caractéristiques (1-6, total max 18)
+// ============================================
+
 /**
- * Met à jour l'affichage des caractéristiques
+ * Met à jour l'affichage des 6 caractéristiques
  */
 function updateStatsDisplay() {
     const stats = getGame().character.stats;
 
-    // Mettre à jour les valeurs
-    document.getElementById('corps-value').textContent = stats.corps;
-    document.getElementById('ame-value').textContent = stats.ame;
-    document.getElementById('esprit-value').textContent = stats.esprit;
+    // Valeurs et points de chaque caractéristique
+    STAT_KEYS.forEach(key => {
+        document.getElementById(`${key}-value`).textContent = stats[key];
+        updateStatDots(key, stats[key]);
+    });
 
-    // Mettre à jour les points
-    updateStatDots('corps', stats.corps);
-    updateStatDots('ame', stats.ame);
-    updateStatDots('esprit', stats.esprit);
-
-    // Mettre à jour le total
-    const total = stats.corps + stats.ame + stats.esprit;
+    // Total
+    const total = STAT_KEYS.reduce((sum, key) => sum + stats[key], 0);
     document.getElementById('total-stats').textContent = total;
 
-    // Activer/désactiver les boutons en fonction des limites
     updateStatButtons();
+    updateDiceFormula();
 }
 
 /**
  * Met à jour l'affichage des points pour une caractéristique
- * @param {string} stat - Nom de la caractéristique
+ * (6 points au lieu de 4 depuis la version à 6 caractéristiques)
+ * @param {string} stat - Nom (clé) de la caractéristique
  * @param {number} value - Valeur de la caractéristique
  */
 function updateStatDots(stat, value) {
     const dotsContainer = document.getElementById(`${stat}-dots`);
     dotsContainer.innerHTML = '';
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < STAT_MAX; i++) {
         const dot = document.createElement('span');
         dot.className = 'dot';
         if (i >= value) {
@@ -972,85 +1028,80 @@ function updateStatDots(stat, value) {
 }
 
 /**
- * Active ou désactive les boutons des caractéristiques en fonction des limites
+ * Active ou désactive les boutons + / - selon les limites
+ * (chaque caractéristique entre 1 et 6, total au plus 18)
  */
 function updateStatButtons() {
     const stats = getGame().character.stats;
-    const total = stats.corps + stats.ame + stats.esprit;
+    const total = STAT_KEYS.reduce((sum, key) => sum + stats[key], 0);
 
-    // Désactiver le bouton + si le total atteint 12
     document.querySelectorAll('.stat-btn.plus').forEach(btn => {
-        btn.disabled = total >= 12;
+        btn.disabled = total >= TOTAL_MAX || stats[btn.dataset.stat] >= STAT_MAX;
     });
 
-    // Désactiver le bouton - si la valeur est à 2
     document.querySelectorAll('.stat-btn.minus').forEach(btn => {
-        const stat = btn.dataset.stat;
-        btn.disabled = stats[stat] <= 2;
+        btn.disabled = stats[btn.dataset.stat] <= STAT_MIN;
     });
 }
 
 /**
  * Modifie la valeur d'une caractéristique
- * @param {string} stat - Nom de la caractéristique
+ * @param {string} stat - Nom (clé) de la caractéristique
  * @param {number} change - Changement (+1 ou -1)
  */
 function changeStat(stat, change) {
     const stats = getGame().character.stats;
-    const currentValue = stats[stat];
-    const newValue = currentValue + change;
+    const newValue = stats[stat] + change;
 
-    // Vérifier les limites (entre 2 et 4 par caractéristique)
-    if (newValue < 2 || newValue > 4) {
+    // Limites : entre 1 et 6 par caractéristique
+    if (newValue < STAT_MIN || newValue > STAT_MAX) {
         return;
     }
 
-    // Vérifier que le total ne dépasse pas 12
-    const total = Object.values(stats).reduce((sum, val) => sum + val, 0);
-    if (change > 0 && total + change > 12) {
-        showNotification('Le total des caractéristiques ne peut pas dépasser 12', 'error');
+    // Le total des 6 caractéristiques ne dépasse pas 18
+    const total = STAT_KEYS.reduce((sum, key) => sum + stats[key], 0);
+    if (change > 0 && total + change > TOTAL_MAX) {
+        showNotification(`Le total des caractéristiques ne peut pas dépasser ${TOTAL_MAX}`, 'error');
         return;
     }
 
-    // Mettre à jour la valeur et sauvegarder
     stats[stat] = newValue;
     persist();
-
-    // Mettre à jour l'affichage
     updateStatsDisplay();
 }
 
+// ============================================
+// Feuille de Personnage : thèmes de dons
+// ============================================
+
 /**
- * Met à jour l'affichage des thèmes de dons
+ * Met à jour l'affichage des thèmes de dons.
+ * La valeur d'un thème dépend du nombre de dons qu'il contient :
+ * 1-2 dons -> 1 ; 3-5 -> 2 ; 6-9 -> 4 ; 10 et plus -> 5 (maximum).
  */
 function updateThemesDisplay() {
-    // Mettre à jour chaque thème
     ['theme1', 'theme2', 'theme3'].forEach(themeId => {
         const theme = getGame().character.themes[themeId];
 
-        // Mettre à jour le nom du thème
         const nameInput = document.querySelector(`.theme-name[data-theme="${themeId}"]`);
         if (nameInput) {
             nameInput.value = theme.name || '';
         }
 
-        // Mettre à jour la valeur du thème (basée sur le nombre de dons)
-        const themeValue = Math.min(4, Math.max(2, theme.gifts.length));
+        const themeValue = themeValueFromGifts(theme.gifts.length);
         const valueElement = document.querySelector(`.theme-value[data-theme="${themeId}"]`);
         if (valueElement) {
             valueElement.textContent = themeValue;
         }
 
-        // Mettre à jour les points du thème
         updateThemeDots(themeId, themeValue);
-
-        // Mettre à jour la liste des dons
         updateGiftsList(themeId);
     });
+    updateDiceFormula();
 }
 
 /**
- * Met à jour l'affichage des points pour un thème
+ * Met à jour l'affichage des points pour un thème (1 à 5 points)
  * @param {string} themeId - ID du thème
  * @param {number} value - Valeur du thème
  */
@@ -1061,7 +1112,7 @@ function updateThemeDots(themeId, value) {
     dotsContainer.innerHTML = '';
     dotsContainer.setAttribute('data-value', value);
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < THEME_MAX; i++) {
         const dot = document.createElement('span');
         dot.className = 'dot';
         if (i >= value) {
@@ -1073,12 +1124,11 @@ function updateThemeDots(themeId, value) {
 }
 
 /**
- * Met à jour la liste des dons pour un thème.
+ * Met à jour la liste des dons d'un thème.
+ * Chaque don affiche son nom, un « ? » (ouvre la fenêtre pour voir et
+ * modifier le don) et une croix pour le supprimer.
  * NB : on ne rappelle PAS updateThemesDisplay() ici, sinon les deux
- * fonctions s'appellent l'une l'autre sans fin (plantage « Maximum
- * call stack size exceeded ») et AUCUN bouton de la page ne fonctionne.
- * Les fonctions qui modifient les dons (addGift, deleteGift) mettent
- * déjà à jour les thèmes elles-mêmes après avoir appelé celle-ci.
+ * fonctions s'appellent l'une l'autre sans fin (plantage).
  * @param {string} themeId - ID du thème
  */
 function updateGiftsList(themeId) {
@@ -1091,85 +1141,467 @@ function updateGiftsList(themeId) {
     theme.gifts.forEach((gift, index) => {
         const li = document.createElement('li');
         li.innerHTML = `
-            <span>${gift}</span>
-            <button class="delete-gift" onclick="deleteGift('${themeId}', ${index})">×</button>
+            <span class="gift-name">${gift.name}</span>
+            <button class="gift-info-btn" data-action="edit-gift" data-theme="${themeId}" data-index="${index}"
+                title="Voir et modifier le don">?</button>
+            <button class="delete-gift" data-action="delete-gift" data-theme="${themeId}" data-index="${index}"
+                title="Supprimer le don">×</button>
         `;
         giftsList.appendChild(li);
     });
 }
 
+// ============================================
+// Fenêtre modale (pop-up) : dons et équipement
+// ============================================
+
 /**
- * Ajoute un don à un thème
- * @param {string} themeId - ID du thème
+ * Ouvre la pop-up pour créer ou modifier un don.
+ * À la création, la bibliothèque de dons prédéfinis est proposée :
+ * choisir un don y remplit automatiquement le nom et la description,
+ * que l'on peut ensuite adapter librement.
+ * @param {string} themeId - Thème concerné ('theme1', 'theme2', 'theme3')
+ * @param {number|null} giftIndex - Index du don à modifier, ou null pour créer
  */
-function addGift(themeId) {
-    const input = document.querySelector(`.new-gift-input[data-theme="${themeId}"]`);
-    const giftName = input.value.trim();
+function openGiftModal(themeId, giftIndex = null) {
+    modalState.mode = giftIndex === null ? 'gift-new' : 'gift-edit';
+    modalState.themeId = themeId;
+    modalState.giftIndex = giftIndex;
+    modalState.equipmentId = null;
 
-    if (!giftName) {
-        showNotification('Veuillez entrer un nom pour le don', 'error');
-        return;
-    }
-
-    // Vérifier que le don n'existe pas déjà
     const theme = getGame().character.themes[themeId];
-    if (theme.gifts.includes(giftName)) {
-        showNotification('Ce don existe déjà dans ce thème', 'error');
-        return;
+    const themeName = (theme && theme.name) || 'Thème';
+
+    document.getElementById('modal-title').textContent =
+        giftIndex === null ? `Nouveau don — ${themeName}` : `Modifier le don — ${themeName}`;
+
+    // Bibliothèque : uniquement à la création
+    const library = document.getElementById('modal-library');
+    const libraryLabel = document.getElementById('modal-library-label');
+    if (giftIndex === null) {
+        library.innerHTML = '<option value="">— Don de la bibliothèque (facultatif) —</option>';
+        GIFT_LIBRARY.forEach(gift => {
+            const option = document.createElement('option');
+            option.value = gift.name;
+            option.textContent = gift.name;
+            library.appendChild(option);
+        });
+        library.value = '';
+        library.style.display = '';
+        libraryLabel.style.display = '';
+    } else {
+        library.style.display = 'none';
+        libraryLabel.style.display = 'none';
     }
 
-    // Un thème ne peut pas avoir plus de 4 dons
-    if (theme.gifts.length >= 4) {
-        showNotification('Un thème ne peut pas avoir plus de 4 dons', 'error');
-        return;
+    // Champ bonus : réservé à l'équipement
+    document.getElementById('modal-bonus-label').style.display = 'none';
+    document.getElementById('modal-bonus').style.display = 'none';
+
+    // Pré-remplir les champs
+    if (giftIndex === null) {
+        document.getElementById('modal-name').value = '';
+        document.getElementById('modal-description').value = '';
+    } else {
+        const gift = theme.gifts[giftIndex];
+        document.getElementById('modal-name').value = gift.name;
+        document.getElementById('modal-description').value = gift.description || '';
     }
 
-    // Ajouter le don et sauvegarder
-    theme.gifts.push(giftName);
-    persist();
+    document.getElementById('modal-save-btn').textContent =
+        giftIndex === null ? 'Ajouter' : 'Enregistrer';
 
-    // Réinitialiser l'input
-    input.value = '';
-
-    // Mettre à jour l'affichage
-    updateGiftsList(themeId);
-    updateThemesDisplay();
-
-    showNotification(`Don "${giftName}" ajouté au thème`);
+    openModal();
 }
 
 /**
- * Supprime un don d'un thème
- * @param {string} themeId - ID du thème
- * @param {number} giftIndex - Index du don à supprimer
+ * Ouvre la pop-up pour créer ou modifier un objet d'équipement
+ * @param {string|null} equipmentId - ID de l'objet, ou null pour créer
  */
-function deleteGift(themeId, giftIndex) {
-    const theme = getGame().character.themes[themeId];
-    const giftName = theme.gifts[giftIndex];
+function openEquipmentModal(equipmentId = null) {
+    modalState.mode = equipmentId === null ? 'equip-new' : 'equip-edit';
+    modalState.equipmentId = equipmentId;
+    modalState.themeId = null;
+    modalState.giftIndex = null;
 
-    if (confirm(`Voulez-vous vraiment supprimer le don "${giftName}" ?`)) {
-        theme.gifts.splice(giftIndex, 1);
+    document.getElementById('modal-title').textContent =
+        equipmentId === null ? 'Nouvel équipement' : 'Modifier l\'équipement';
+
+    // Bibliothèque : pas d'équipement prédéfini
+    document.getElementById('modal-library').style.display = 'none';
+    document.getElementById('modal-library-label').style.display = 'none';
+
+    // Champ bonus : visible pour l'équipement
+    document.getElementById('modal-bonus-label').style.display = '';
+    document.getElementById('modal-bonus').style.display = '';
+
+    if (equipmentId === null) {
+        document.getElementById('modal-name').value = '';
+        document.getElementById('modal-description').value = '';
+        document.getElementById('modal-bonus').value = '0';
+    } else {
+        const item = getGame().equipment.find(eq => eq.id === equipmentId);
+        document.getElementById('modal-name').value = item ? item.name : '';
+        document.getElementById('modal-description').value = item ? (item.description || '') : '';
+        document.getElementById('modal-bonus').value = item ? item.bonus : 0;
+    }
+
+    document.getElementById('modal-save-btn').textContent =
+        equipmentId === null ? 'Ajouter' : 'Enregistrer';
+
+    openModal();
+}
+
+/**
+ * Le joueur a choisi un don de la bibliothèque : remplir les champs
+ * (il peut encore modifier le texte avant d'enregistrer).
+ */
+function onLibraryChange() {
+    const name = document.getElementById('modal-library').value;
+    if (!name) return;
+    const gift = GIFT_LIBRARY.find(g => g.name === name);
+    if (gift) {
+        document.getElementById('modal-name').value = gift.name;
+        document.getElementById('modal-description').value = gift.description;
+    }
+}
+
+/**
+ * Enregistre le contenu de la pop-up (don ou équipement), selon le mode
+ */
+function saveModal() {
+    const name = document.getElementById('modal-name').value.trim();
+    const description = document.getElementById('modal-description').value.trim();
+
+    if (!name) {
+        showNotification('Veuillez entrer un nom', 'error');
+        return;
+    }
+
+    const game = getGame();
+
+    if (modalState.mode === 'gift-new' || modalState.mode === 'gift-edit') {
+        const theme = game.character.themes[modalState.themeId];
+        if (!theme) return;
+
+        if (modalState.mode === 'gift-new') {
+            theme.gifts.push({ name: name, description: description });
+        } else {
+            const gift = theme.gifts[modalState.giftIndex];
+            if (gift) {
+                gift.name = name;
+                gift.description = description;
+            }
+        }
         persist();
-        updateGiftsList(themeId);
         updateThemesDisplay();
-        showNotification(`Don "${giftName}" supprimé`);
+    } else if (modalState.mode === 'equip-new' || modalState.mode === 'equip-edit') {
+        // Le bonus est un nombre (peut être négatif, ex. objet maudit)
+        let bonus = parseInt(document.getElementById('modal-bonus').value, 10);
+        if (isNaN(bonus)) {
+            bonus = 0;
+        }
+
+        if (modalState.mode === 'equip-new') {
+            game.equipment.push({
+                id: generateId(),
+                name: name,
+                description: description,
+                bonus: bonus
+            });
+        } else {
+            const item = game.equipment.find(eq => eq.id === modalState.equipmentId);
+            if (item) {
+                item.name = name;
+                item.description = description;
+                item.bonus = bonus;
+            }
+        }
+        persist();
+        renderEquipment();
+    }
+
+    closeModal();
+    showNotification('Enregistré !');
+}
+
+/**
+ * Affiche la pop-up
+ */
+function openModal() {
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    const nameInput = document.getElementById('modal-name');
+    if (nameInput.focus) {
+        nameInput.focus();
     }
 }
 
 /**
- * Enregistre le nom d'un thème pendant la frappe
- * @param {string} themeId - ID du thème
+ * Ferme la pop-up
  */
-function updateThemeName(themeId) {
-    const input = document.querySelector(`.theme-name[data-theme="${themeId}"]`);
-    const newName = input.value.trim();
+function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    modalState.mode = null;
+    modalState.themeId = null;
+    modalState.giftIndex = null;
+    modalState.equipmentId = null;
+}
 
-    getGame().character.themes[themeId].name = newName;
-    persist();
+// ============================================
+// Équipement
+// ============================================
+
+/**
+ * Affiche la liste d'équipement : nom + bonus + « ? » (toutes les infos).
+ */
+function renderEquipment() {
+    const list = document.getElementById('equipment-list');
+    list.innerHTML = '';
+
+    const equipment = getGame().equipment;
+    if (equipment.length === 0) {
+        list.innerHTML = '<li class="equipment-empty">Aucun objet. Cliquez sur « Nouveau » !</li>';
+        updateDiceFormula();
+        return;
+    }
+
+    equipment.forEach(item => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="equip-name">${item.name}</span>
+            <span class="equip-bonus">+${item.bonus}</span>
+            <button class="equip-info-btn" data-action="equip-info" data-id="${item.id}"
+                title="Voir toutes les informations">?</button>
+            <button class="equip-delete" data-action="equip-delete" data-id="${item.id}"
+                title="Supprimer l'objet">×</button>
+        `;
+        list.appendChild(li);
+    });
+    updateDiceFormula();
 }
 
 /**
- * Réinitialise la feuille de personnage de la partie courante
+ * Affiche la petite fenêtre d'information d'un objet : toutes ses infos
+ * (nom, description, bonus) avec des boutons Modifier / Supprimer.
+ * @param {string} equipmentId - ID de l'objet à montrer
+ */
+function showEquipmentInfo(equipmentId) {
+    const item = getGame().equipment.find(eq => eq.id === equipmentId);
+    if (!item) return;
+
+    infoState.equipmentId = equipmentId;
+
+    document.getElementById('info-title').textContent = item.name;
+    let body = item.description ? item.description : '(Aucune description)';
+    body += `\n\nBonus : +${item.bonus}`;
+    document.getElementById('info-body').textContent = body;
+
+    document.getElementById('info-overlay').classList.remove('hidden');
+}
+
+/**
+ * Ferme la fenêtre d'information
+ */
+function closeInfo() {
+    document.getElementById('info-overlay').classList.add('hidden');
+    infoState.equipmentId = null;
+}
+
+/**
+ * Supprime un objet d'équipement (avec confirmation)
+ * @param {string} equipmentId - ID de l'objet à supprimer
+ */
+function deleteEquipment(equipmentId) {
+    const item = getGame().equipment.find(eq => eq.id === equipmentId);
+    if (!item) return;
+
+    if (!confirm(`Supprimer "${item.name}" de l'équipement ?`)) {
+        return;
+    }
+
+    const game = getGame();
+    game.equipment = game.equipment.filter(eq => eq.id !== equipmentId);
+    persist();
+    closeInfo();
+    renderEquipment();
+    showNotification('Objet supprimé');
+}
+
+// ============================================
+// Lanceur de dés
+// ============================================
+
+/**
+ * Remplit les 4 listes de choix du lanceur de dés :
+ *   1) les 3 premières caractéristiques (Corps, Âme, Esprit)
+ *   2) les 3 suivantes (Précision, Puissance, Potentiel)
+ *   3) les thèmes
+ *   4) les objets d'équipement
+ */
+function renderDiceOptions() {
+    const stats = getGame().character.stats;
+    const themes = getGame().character.themes;
+    const equipment = getGame().equipment;
+
+    // Liste 1 : Corps / Âme / Esprit
+    const select1 = document.getElementById('dice-stat1');
+    select1.innerHTML = '';
+    ['corps', 'ame', 'esprit'].forEach(key => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${STAT_LABELS[key]} (${stats[key]})`;
+        select1.appendChild(option);
+    });
+
+    // Liste 2 : Précision / Puissance / Potentiel
+    const select2 = document.getElementById('dice-stat2');
+    select2.innerHTML = '';
+    ['precision', 'puissance', 'potentiel'].forEach(key => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${STAT_LABELS[key]} (${stats[key]})`;
+        select2.appendChild(option);
+    });
+
+    // Liste 3 : les thèmes (valeur = valeur du thème selon ses dons)
+    const selectTheme = document.getElementById('dice-theme');
+    selectTheme.innerHTML = '';
+    ['theme1', 'theme2', 'theme3'].forEach(themeId => {
+        const theme = themes[themeId];
+        const option = document.createElement('option');
+        option.value = themeId;
+        const themeName = (theme && theme.name) || `Thème ${themeId.slice(-1)}`;
+        const themeValue = themeValueFromGifts(theme.gifts.length);
+        option.textContent = `${themeName} (${themeValue})`;
+        selectTheme.appendChild(option);
+    });
+
+    // Liste 4 : les objets d'équipement (valeur = bonus)
+    const selectEquip = document.getElementById('dice-equip');
+    selectEquip.innerHTML = '';
+    if (equipment.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '— Aucun objet —';
+        option.disabled = true;
+        selectEquip.appendChild(option);
+    } else {
+        equipment.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.textContent = `${item.name} (+${item.bonus})`;
+            selectEquip.appendChild(option);
+        });
+    }
+
+    updateDiceFormula();
+}
+
+/**
+ * Lit les 4 listes et renvoie la sélection du joueur.
+ * Chaque élément choisi devient une "partie" du lancer :
+ * { label: texte à afficher, value: nombre à ajouter }
+ * @returns {Array<{label: string, value: number}>}
+ */
+function diceSelection() {
+    const parts = [];
+    const stats = getGame().character.stats;
+    const themes = getGame().character.themes;
+
+    // Caractéristique 1
+    const key1 = document.getElementById('dice-stat1').value;
+    if (key1) {
+        parts.push({ label: `${STAT_LABELS[key1]} (${stats[key1]})`, value: stats[key1] });
+    }
+
+    // Caractéristique 2
+    const key2 = document.getElementById('dice-stat2').value;
+    if (key2) {
+        parts.push({ label: `${STAT_LABELS[key2]} (${stats[key2]})`, value: stats[key2] });
+    }
+
+    // Thème
+    const themeId = document.getElementById('dice-theme').value;
+    if (themeId && themes[themeId]) {
+        const theme = themes[themeId];
+        const themeValue = themeValueFromGifts(theme.gifts.length);
+        const themeName = theme.name || `Thème ${themeId.slice(-1)}`;
+        parts.push({ label: `${themeName} (${themeValue})`, value: themeValue });
+    }
+
+    // Équipement
+    const equipId = document.getElementById('dice-equip').value;
+    if (equipId) {
+        const item = getGame().equipment.find(eq => eq.id === equipId);
+        if (item) {
+            parts.push({ label: `${item.name} (+${item.bonus})`, value: item.bonus });
+        }
+    }
+
+    return parts;
+}
+
+/**
+ * Met à jour le champ de formule, ex. :
+ * "Corps (3) + Épée (+2) + 1d20"
+ */
+function updateDiceFormula() {
+    const parts = diceSelection();
+    const labels = parts.map(part => part.label).concat(['1d20']);
+    document.getElementById('dice-formula').textContent = labels.join(' + ');
+}
+
+/**
+ * Lance un dé 20 faces (nombre aléatoire entre 1 et 20)
+ * @returns {number}
+ */
+function rollD20() {
+    return 1 + Math.floor(Math.random() * 20);
+}
+
+/**
+ * Lance les dés !
+ * - 'normal'     : 1d20 + les bonus des choix
+ * - 'advantage'  : 2d20, on garde le MEILLEUR
+ * - 'disadvantage' : 2d20, on garde le PLUS BAS
+ * @param {string} mode - 'normal', 'advantage' ou 'disadvantage'
+ */
+function rollDice(mode = 'normal') {
+    const parts = diceSelection();
+    const sum = parts.reduce((total, part) => total + part.value, 0);
+
+    let d20;
+    let diceDetail = '1d20';
+
+    if (mode === 'advantage') {
+        const a = rollD20();
+        const b = rollD20();
+        d20 = Math.max(a, b);
+        diceDetail = `2d20 → ${a} et ${b}, on garde ${d20}`;
+    } else if (mode === 'disadvantage') {
+        const a = rollD20();
+        const b = rollD20();
+        d20 = Math.min(a, b);
+        diceDetail = `2d20 → ${a} et ${b}, on garde ${d20}`;
+    } else {
+        d20 = rollD20();
+    }
+
+    const total = sum + d20;
+    const bonusText = sum > 0 ? ` (+${sum} de bonus)` : '';
+
+    document.getElementById('dice-result').textContent =
+        `Résultat : ${total}${bonusText} — ${diceDetail}`;
+
+    showNotification(`Lancer : ${total} !`);
+}
+
+// ============================================
+// Feuille de personnage : remise à zéro
+// ============================================
+
+/**
+ * Remplace le personnage actuel par un personnage neuf
  */
 function resetCharacter() {
     if (confirm('Voulez-vous vraiment réinitialiser le personnage ? Toutes les données non sauvegardées seront perdues.')) {
@@ -1194,11 +1626,11 @@ function updateCharacterUI() {
     document.getElementById('character-role').value = character.description.role || '';
     updateFullDescription();
 
-    // Mettre à jour les caractéristiques
+    // Mettre à jour les caractéristiques, les thèmes, l'équipement et les dés
     updateStatsDisplay();
-
-    // Mettre à jour les thèmes
     updateThemesDisplay();
+    renderEquipment();
+    renderDiceOptions();
 }
 
 // ============================================
@@ -1258,7 +1690,7 @@ function renderJournalEntries() {
             <h4>${entry.title}</h4>
             <p>${entry.content}</p>
             <span class="entry-date">${formatDate(entry.date)}</span>
-            <button class="delete-entry" onclick="deleteJournalEntry('${entry.id}')">Supprimer</button>
+            <button class="delete-entry" data-action="delete-entry" data-id="${entry.id}">Supprimer</button>
         `;
         container.appendChild(entryElement);
     });
@@ -1473,29 +1905,85 @@ function setupEventListeners() {
         persist();
     });
 
-    // Thèmes de dons
+    // Thèmes de dons : le nom du thème sert aussi dans le lanceur de dés
     document.querySelectorAll('.theme-name').forEach(input => {
         input.addEventListener('input', (e) => {
             const themeId = e.target.dataset.theme;
             getGame().character.themes[themeId].name = e.target.value.trim();
             persist();
+            renderDiceOptions();
         });
     });
 
+    // Boutons "Nouveau don" : ouvrent la pop-up (bibliothèque + champs libres)
     document.querySelectorAll('.add-gift-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const themeId = btn.dataset.theme;
-            addGift(themeId);
+            openGiftModal(btn.dataset.theme, null);
         });
     });
 
-    document.querySelectorAll('.new-gift-input').forEach(input => {
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const themeId = e.target.dataset.theme;
-                addGift(themeId);
-            }
-        });
+    // Équipement : bouton "Nouveau"
+    document.getElementById('new-equipment-btn').addEventListener('click', () => {
+        openEquipmentModal(null);
+    });
+
+    // Lanceur de dés
+    ['dice-stat1', 'dice-stat2', 'dice-theme', 'dice-equip'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateDiceFormula);
+    });
+    document.getElementById('dice-roll-btn').addEventListener('click', () => rollDice('normal'));
+    document.getElementById('dice-adv-btn').addEventListener('click', () => rollDice('advantage'));
+    document.getElementById('dice-dis-btn').addEventListener('click', () => rollDice('disadvantage'));
+
+    // Pop-up (dons et équipement)
+    document.getElementById('modal-library').addEventListener('change', onLibraryChange);
+    document.getElementById('modal-save-btn').addEventListener('click', saveModal);
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+
+    // Fenêtre d'information (équipement)
+    document.getElementById('info-edit-btn').addEventListener('click', () => {
+        const id = infoState.equipmentId;
+        closeInfo();
+        openEquipmentModal(id);
+    });
+    document.getElementById('info-delete-btn').addEventListener('click', () => {
+        deleteEquipment(infoState.equipmentId);
+    });
+    document.getElementById('info-close-btn').addEventListener('click', closeInfo);
+
+    // Fermer les fenêtres en cliquant sur le fond sombre
+    document.getElementById('modal-overlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeModal();
+    });
+    document.getElementById('info-overlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeInfo();
+    });
+
+    // Boutons créés dynamiquement (dons, équipement, journal)
+    // On écoute TOUT le corps de la page : quand un bouton portant
+    // data-action est cliqué, on agit selon sa valeur.
+    document.body.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+
+        const action = btn.dataset.action;
+        const index = parseInt(btn.dataset.index, 10);
+
+        if (action === 'edit-gift') {
+            openGiftModal(btn.dataset.theme, index);
+        } else if (action === 'delete-gift') {
+            deleteGift(btn.dataset.theme, index);
+        } else if (action === 'equip-info') {
+            showEquipmentInfo(btn.dataset.id);
+        } else if (action === 'equip-delete') {
+            deleteEquipment(btn.dataset.id);
+        } else if (action === 'delete-entry') {
+            deleteJournalEntry(btn.dataset.id);
+        } else if (action === 'edit-word-list') {
+            editWordList(btn.dataset.id);
+        } else if (action === 'delete-word-list') {
+            deleteWordList(btn.dataset.id);
+        }
     });
 
     // Sauvegarde
@@ -1518,6 +2006,30 @@ function setupEventListeners() {
 
     // Journal
     document.getElementById('add-entry-btn').addEventListener('click', addJournalEntry);
+}
+
+// ============================================
+// Dons : suppression
+// ============================================
+
+/**
+ * Supprime un don d'un thème (avec confirmation)
+ * @param {string} themeId - ID du thème
+ * @param {number} giftIndex - Position du don dans la liste
+ */
+function deleteGift(themeId, giftIndex) {
+    const theme = getGame().character.themes[themeId];
+    if (!theme || !theme.gifts[giftIndex]) return;
+
+    const gift = theme.gifts[giftIndex];
+    if (!confirm(`Supprimer le don "${gift.name}" ?`)) {
+        return;
+    }
+
+    theme.gifts.splice(giftIndex, 1);
+    persist();
+    updateThemesDisplay();
+    showNotification('Don supprimé');
 }
 
 // ============================================

@@ -148,9 +148,43 @@
                     </div>
                 </div>
 
+                <!-- Lanceur de dés -->
+                <div class="dice-roller">
+                    <h3>Lanceur de dés</h3>
+                    <p class="dice-explanation">
+                        Choisissez ce qui s'ajoute au lancer (caractéristiques, thème, objet),
+                        puis lancez les dés.
+                    </p>
+                    <div class="dice-selects">
+                        <label>
+                            Caractéristique 1 :
+                            <select id="dice-stat1"></select>
+                        </label>
+                        <label>
+                            Caractéristique 2 :
+                            <select id="dice-stat2"></select>
+                        </label>
+                        <label>
+                            Thème :
+                            <select id="dice-theme"></select>
+                        </label>
+                        <label>
+                            Objet :
+                            <select id="dice-equip"></select>
+                        </label>
+                    </div>
+                    <div class="dice-formula" id="dice-formula">1d20</div>
+                    <div class="dice-buttons">
+                        <button id="dice-roll-btn">Lancer</button>
+                        <button id="dice-adv-btn" class="secondary-btn">Avantage</button>
+                        <button id="dice-dis-btn" class="secondary-btn">Désavantage</button>
+                    </div>
+                    <div class="dice-result" id="dice-result"></div>
+                </div>
+
                 <!-- Caractéristiques -->
                 <div class="character-stats">
-                    <h3>Caractéristiques (2-4)</h3>
+                    <h3>Caractéristiques (1 à 6, total maximum : 18)</h3>
                     <div class="stats-grid">
                         <div class="stat-card" data-stat="corps">
                             <h4>Corps</h4>
@@ -194,9 +228,51 @@
                                 <span class="dot empty">•</span>
                             </div>
                         </div>
+                        <div class="stat-card" data-stat="precision">
+                            <h4>Précision</h4>
+                            <div class="stat-value">
+                                <button class="stat-btn minus" data-stat="precision">-</button>
+                                <span id="precision-value">2</span>
+                                <button class="stat-btn plus" data-stat="precision">+</button>
+                            </div>
+                            <div class="stat-dots" id="precision-dots">
+                                <span class="dot">•</span>
+                                <span class="dot">•</span>
+                                <span class="dot empty">•</span>
+                                <span class="dot empty">•</span>
+                            </div>
+                        </div>
+                        <div class="stat-card" data-stat="puissance">
+                            <h4>Puissance</h4>
+                            <div class="stat-value">
+                                <button class="stat-btn minus" data-stat="puissance">-</button>
+                                <span id="puissance-value">2</span>
+                                <button class="stat-btn plus" data-stat="puissance">+</button>
+                            </div>
+                            <div class="stat-dots" id="puissance-dots">
+                                <span class="dot">•</span>
+                                <span class="dot">•</span>
+                                <span class="dot empty">•</span>
+                                <span class="dot empty">•</span>
+                            </div>
+                        </div>
+                        <div class="stat-card" data-stat="potentiel">
+                            <h4>Potentiel</h4>
+                            <div class="stat-value">
+                                <button class="stat-btn minus" data-stat="potentiel">-</button>
+                                <span id="potentiel-value">2</span>
+                                <button class="stat-btn plus" data-stat="potentiel">+</button>
+                            </div>
+                            <div class="stat-dots" id="potentiel-dots">
+                                <span class="dot">•</span>
+                                <span class="dot">•</span>
+                                <span class="dot empty">•</span>
+                                <span class="dot empty">•</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="stats-summary">
-                        <p>Total : <span id="total-stats">6</span>/12</p>
+                        <p>Total : <span id="total-stats">12</span>/18</p>
                     </div>
                 </div>
 
@@ -204,8 +280,9 @@
                 <div class="character-themes">
                     <h3>Thèmes de Dons</h3>
                     <p class="themes-explanation">
-                        Chaque thème contient une liste de dons. 
-                        Le nombre de dons dans un thème détermine sa valeur (2-4).
+                        Chaque thème contient une liste de dons. Le nombre de dons
+                        détermine la valeur du thème : 1 à 2 dons → 1, 3 à 5 → 2,
+                        6 à 9 → 4, 10 et plus → 5 (maximum).
                     </p>
                     <div class="themes-grid">
                         <div class="theme-card" data-theme="theme1">
@@ -215,8 +292,7 @@
                                 <span class="theme-dots" data-theme="theme1"></span>
                             </div>
                             <div class="theme-gifts">
-                                <input type="text" class="new-gift-input" data-theme="theme1" placeholder="Nouveau don">
-                                <button class="add-gift-btn" data-theme="theme1">Ajouter</button>
+                                <button class="add-gift-btn" data-theme="theme1">Nouveau don</button>
                                 <ul class="gifts-list" data-theme="theme1"></ul>
                             </div>
                         </div>
@@ -227,8 +303,7 @@
                                 <span class="theme-dots" data-theme="theme2"></span>
                             </div>
                             <div class="theme-gifts">
-                                <input type="text" class="new-gift-input" data-theme="theme2" placeholder="Nouveau don">
-                                <button class="add-gift-btn" data-theme="theme2">Ajouter</button>
+                                <button class="add-gift-btn" data-theme="theme2">Nouveau don</button>
                                 <ul class="gifts-list" data-theme="theme2"></ul>
                             </div>
                         </div>
@@ -239,12 +314,23 @@
                                 <span class="theme-dots" data-theme="theme3"></span>
                             </div>
                             <div class="theme-gifts">
-                                <input type="text" class="new-gift-input" data-theme="theme3" placeholder="Nouveau don">
-                                <button class="add-gift-btn" data-theme="theme3">Ajouter</button>
+                                <button class="add-gift-btn" data-theme="theme3">Nouveau don</button>
                                 <ul class="gifts-list" data-theme="theme3"></ul>
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Équipement -->
+                <div class="character-equipment">
+                    <h3>Équipement</h3>
+                    <p class="equipment-explanation">
+                        Chaque objet porte un nom, une description et un bonus.
+                        Par défaut, seul le nom, le bonus et un « ? » sont affichés :
+                        cliquez sur le « ? » pour voir toutes les informations.
+                    </p>
+                    <button id="new-equipment-btn">Nouveau</button>
+                    <ul id="equipment-list"></ul>
                 </div>
 
             </div>
@@ -273,6 +359,38 @@
         <footer>
             <p>Mon One Page - Jeu de Rôle Solo | Données sauvegardées dans le navigateur (stockage local + cookie), exportables en JSON</p>
         </footer>
+    </div>
+
+    <!-- Fenêtre pop-up : création / modification d'un don ou d'un objet -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 id="modal-title">Nouveau don</h3>
+            <label id="modal-library-label" for="modal-library">Bibliothèque de dons :</label>
+            <select id="modal-library"></select>
+            <label for="modal-name">Nom :</label>
+            <input type="text" id="modal-name" placeholder="Nom">
+            <label for="modal-description">Description :</label>
+            <textarea id="modal-description" rows="4" placeholder="Description"></textarea>
+            <label id="modal-bonus-label" for="modal-bonus">Bonus :</label>
+            <input type="number" id="modal-bonus" value="0">
+            <div class="modal-buttons">
+                <button id="modal-save-btn">Ajouter</button>
+                <button id="modal-cancel-btn" class="secondary-btn">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fenêtre d'information : détails d'un objet d'équipement -->
+    <div id="info-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 id="info-title"></h3>
+            <div id="info-body" class="info-body"></div>
+            <div class="modal-buttons">
+                <button id="info-edit-btn">Modifier</button>
+                <button id="info-delete-btn" class="danger-btn">Supprimer</button>
+                <button id="info-close-btn" class="secondary-btn">Fermer</button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
